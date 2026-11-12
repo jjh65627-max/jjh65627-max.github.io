@@ -99,6 +99,7 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
 .stAdd{font-size:10px;font-weight:900;color:#aaa;margin-top:-2px}
 .stName{font-size:9px;color:#888;font-weight:700;max-width:54px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+.emptyInbox{padding:40px 24px;text-align:center;color:#999;font-size:14px;font-weight:700;line-height:1.6}
 .msgItem{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s}
 .msgItem:active{background:#f9f9f9}
 .msgAv{width:50px;height:50px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:22px;position:relative;flex-shrink:0}
@@ -374,10 +375,7 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
       <div class="stItem"><div class="stRing"><div class="stImg">👩</div></div><div class="stName">luna</div></div>
       <div class="stItem"><div class="stRing"><div class="stImg">🎨</div></div><div class="stName">sofia</div></div>
     </div>
-    <div class="msgItem" onclick="openChat('aria.photos','🌿')"><div class="msgAv">🌿<div class="msgOnline"></div></div><div class="msgInfo"><div class="msgName">aria.photos</div><div class="msgPrev">Chat en tiempo real 🔥</div></div><div class="msgMeta"><div class="msgTime">ahora</div><div class="msgBadge">!</div></div></div>
-    <div class="msgItem" onclick="openChat('carlos.art','😊')"><div class="msgAv">😊<div class="msgOnline"></div></div><div class="msgInfo"><div class="msgName">carlos.art</div><div class="msgPrev">El arte es mi vida 🎨</div></div><div class="msgMeta"><div class="msgTime">1h</div></div></div>
-    <div class="msgItem" onclick="openChat('luna_vibes','👩')"><div class="msgAv">👩<div class="msgOnline"></div></div><div class="msgInfo"><div class="msgName">luna_vibes</div><div class="msgPrev">Gracias! 💜</div></div><div class="msgMeta"><div class="msgTime">3h</div><div class="msgBadge">2</div></div></div>
-    <div class="msgItem" onclick="openChat('sofia.crea','🎨')"><div class="msgAv">🎨</div><div class="msgInfo"><div class="msgName">sofia.crea</div><div class="msgPrev">Te mando la receta 🍕</div></div><div class="msgMeta"><div class="msgTime">1d</div></div></div>
+    <div id="inbox"><div class="emptyInbox">Cargando...</div></div>
   </div>
 </div>
 
@@ -386,7 +384,7 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
   <div class="chatHead">
     <div class="chatBack" onclick="closeScreen('chat');openScreen('msgs')">&#x2039;</div>
     <div class="chatAvSm" id="chatAv">🌿</div>
-    <div><div class="chatNameSm" id="chatName">aria.photos</div><div class="chatOnline">En linea</div></div>
+    <div><div class="chatNameSm" id="chatName">aria.photos</div><div class="chatOnline">Chat privado</div></div>
   </div>
   <div class="chatMsgs" id="chatMsgs"></div>
   <div class="chatBar">
@@ -499,7 +497,7 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
-import { getDatabase, ref, push, onValue, get, set, remove } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+import { getDatabase, ref, push, onValue, get, set, remove, update, increment, query, orderByChild, startAt, endAt, limitToFirst, limitToLast } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyCgE6UMwLZc6iteDzAjbWMZr2ZKjQb04VQ",
@@ -513,6 +511,39 @@ const app = initializeApp({
 const auth = getAuth(app);
 const db = getDatabase(app);
 let user=null, chatId=null, unsub=null, unsubComments=null, isReg=false, curPost=null;
+let chatOther=null, unsubInbox=null, searchT=null;
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function myName(){return user.displayName||user.email.split("@")[0];}
+function myEmoji(){return localStorage.getItem("pEmoji")||"🧑";}
+async function publishProfile(){
+  if(!user)return;
+  try{await set(ref(db,"users/"+user.uid),{name:myName(),nameLower:myName().toLowerCase(),emoji:myEmoji(),ts:Date.now()});}catch(e){}
+}
+function timeAgo(ts){
+  if(!ts)return "";
+  const m=Math.floor((Date.now()-ts)/60000);
+  if(m<1)return "ahora";if(m<60)return m+"m";
+  const h=Math.floor(m/60);if(h<24)return h+"h";
+  return Math.floor(h/24)+"d";
+}
+function loadInbox(){
+  if(unsubInbox)unsubInbox();
+  const box=document.getElementById("inbox");
+  unsubInbox=onValue(ref(db,"userChats/"+user.uid),snap=>{
+    const items=[];
+    snap.forEach(c=>{items.push(Object.assign({uid:c.key},c.val()));});
+    items.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(!items.length){
+      box.innerHTML='<div class="emptyInbox">Aun no tienes chats.<br>Busca a alguien en la Brujula 🧭 y escribele.</div>';
+      return;
+    }
+    box.innerHTML=items.map(i=>'<div class="msgItem" data-uid="'+esc(i.uid)+'"><div class="msgAv">'+esc(i.emoji)+'</div><div class="msgInfo"><div class="msgName">'+esc(i.name)+'</div><div class="msgPrev">'+esc(i.last)+'</div></div><div class="msgMeta"><div class="msgTime">'+timeAgo(i.ts)+'</div>'+(i.unread>0?'<div class="msgBadge">'+(i.unread>9?"9+":i.unread)+'</div>':'')+'</div></div>').join("");
+    box.querySelectorAll(".msgItem").forEach(el=>{
+      const it=items.find(x=>x.uid===el.dataset.uid);
+      el.onclick=()=>openChat(it.uid,it.name,it.emoji);
+    });
+  },()=>{box.innerHTML='<div class="emptyInbox">No se pudieron cargar los chats.</div>';});
+}
 
 onAuthStateChanged(auth, async u=>{
   user=u;
@@ -528,8 +559,12 @@ onAuthStateChanged(auth, async u=>{
     // Load user likes from Firebase
     loadUserLikes(u.uid);
     loadUserSaves(u.uid);
+    publishProfile();
+    loadInbox();
     try{const s=await get(ref(db,"followers/"+u.uid));document.getElementById("profFollowers").textContent=s.exists()?Object.keys(s.val()).length:"—";}catch(e){}
   } else {
+    if(unsubInbox){unsubInbox();unsubInbox=null;}
+    const ib=document.getElementById("inbox");if(ib)ib.innerHTML="";
     setTimeout(()=>document.getElementById("loginScreen").classList.add("show"),2500);
   }
 });
@@ -575,6 +610,7 @@ window.doAuth=async function(){
       const name=document.getElementById("inpName").value||"Usuario";
       const c=await createUserWithEmailAndPassword(auth,email,pass);
       await updateProfile(c.user,{displayName:name});
+      await publishProfile();
       toast("Bienvenido a ChatRT! 🎉");
     }else{
       await signInWithEmailAndPassword(auth,email,pass);
@@ -649,7 +685,7 @@ window.openComments=function(postId,e){
     snap.forEach(child=>{
       const c=child.val();
       const item=document.createElement("div");item.className="commentItem";
-      item.innerHTML='<div class="commentAv">'+c.emoji+'</div><div class="commentBody"><div class="commentUser">'+c.user+'</div><div class="commentText">'+c.text+'</div></div>';
+      item.innerHTML='<div class="commentAv">'+esc(c.emoji)+'</div><div class="commentBody"><div class="commentUser">'+esc(c.user)+'</div><div class="commentText">'+esc(c.text)+'</div></div>';
       list.appendChild(item);
     });
     list.scrollTop=list.scrollHeight;
@@ -670,58 +706,78 @@ window.postComment=async function(){
   });
 };
 
-window.openChat=function(name,emoji){
+window.openChat=function(otherUid,name,emoji){
   if(!user){toast("Inicia sesion primero");return;}
+  if(otherUid===user.uid){toast("No puedes chatear contigo mismo");return;}
+  chatOther={uid:otherUid,name:name,emoji:emoji};
   document.getElementById("chatName").textContent=name;
   document.getElementById("chatAv").textContent=emoji;
   document.getElementById("chatMsgs").innerHTML="";
-  const key=btoa(encodeURIComponent(name)).replace(/[^a-zA-Z0-9]/g,"");
-  chatId=[user.uid,key].sort().join("_");
+  chatId=[user.uid,otherUid].sort().join("_");
   if(unsub)unsub();
-  unsub=onValue(ref(db,"chats/"+chatId),snap=>{
+  unsub=onValue(query(ref(db,"chats/"+chatId),limitToLast(100)),snap=>{
     const c=document.getElementById("chatMsgs");c.innerHTML="";
     snap.forEach(child=>{
       const m=child.val(),sent=m.uid===user.uid;
       const wrap=document.createElement("div");wrap.className="mWrap "+(sent?"sent":"recv");
-      if(!sent){const s=document.createElement("div");s.className="bSender";s.textContent=m.sender;wrap.appendChild(s);}
       const b=document.createElement("div");b.className="bubble "+(sent?"sent":"recv");b.textContent=m.text;wrap.appendChild(b);
       const t=document.createElement("div");t.className="bTime";t.textContent=new Date(m.ts).toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});wrap.appendChild(t);
       c.appendChild(wrap);
     });
     c.scrollTop=c.scrollHeight;
-  });
+    if(snap.exists())update(ref(db,"userChats/"+user.uid+"/"+otherUid),{unread:0}).catch(()=>{});
+  },()=>{toast("No se pudo abrir el chat");});
   closeScreen("msgs");
   openScreen("chat");
 };
-window.sendMsg=function(){
-  if(!user||!chatId)return;
+window.sendMsg=async function(){
+  if(!user||!chatId||!chatOther)return;
   const inp=document.getElementById("chatInp");
-  const text=inp.value.trim();if(!text)return;inp.value="";
-  push(ref(db,"chats/"+chatId),{text,uid:user.uid,sender:user.displayName||user.email.split("@")[0],ts:Date.now()});
+  const text=inp.value.trim().slice(0,1000);if(!text)return;inp.value="";
+  const ts=Date.now(),last=text.slice(0,60),other=chatOther;
+  try{
+    await push(ref(db,"chats/"+chatId),{text:text,uid:user.uid,sender:myName(),ts:ts});
+    await update(ref(db,"userChats/"+user.uid+"/"+other.uid),{name:other.name,emoji:other.emoji,last:last,ts:ts,unread:0});
+    await update(ref(db,"userChats/"+other.uid+"/"+user.uid),{name:myName(),emoji:myEmoji(),last:last,ts:ts,unread:increment(1)});
+  }catch(e){toast("No se pudo enviar. Revisa tu conexion");}
 };
 
 window.saveProfile=function(){
   const name=document.getElementById("eName").value.trim();
   const bio=document.getElementById("eBio").value.trim();
   const emoji=document.getElementById("eEmoji").value.trim();
-  if(name&&auth.currentUser)updateProfile(auth.currentUser,{displayName:name});
+  const upd=(name&&auth.currentUser)?updateProfile(auth.currentUser,{displayName:name}):Promise.resolve();
   if(bio)localStorage.setItem("pBio",bio);
   if(emoji)localStorage.setItem("pEmoji",emoji);
   if(name)document.getElementById("profName").textContent=name;
   if(bio)document.getElementById("profBio").textContent=bio;
   if(emoji){document.getElementById("profEmoji").textContent=emoji;document.getElementById("myStAv").textContent=emoji;}
+  upd.then(publishProfile);
   closeOverlay("editOv");toast("Perfil actualizado! ✅");
 };
 
 window.searchUsers=function(q){
+  q=(q||"").trim().toLowerCase();
   const res=document.getElementById("searchResults");
   const cont=document.getElementById("bruContent");
   if(!q){res.style.display="none";cont.style.display="block";return;}
   cont.style.display="none";res.style.display="block";
-  const users=[{n:"aria.photos",e:"🌿",s:"Fotografia y naturaleza"},{n:"carlos.art",e:"😊",s:"Arte digital"},{n:"luna_vibes",e:"👩",s:"Lifestyle y decoracion"},{n:"sofia.crea",e:"🎨",s:"Cocina creativa"}];
-  const filtered=users.filter(u=>u.n.toLowerCase().includes(q.toLowerCase()));
-  if(filtered.length===0){res.innerHTML='<div style="padding:20px;text-align:center;color:#aaa;font-size:13px;font-weight:700">No se encontraron usuarios</div>';return;}
-  res.innerHTML=filtered.map(u=>'<div class="userResult"><div class="userAv">'+u.e+'</div><div><div class="userName">'+u.n+'</div><div class="userSub">'+u.s+'</div></div><button class="followBtn" onclick="toast(\'Siguiendo a '+u.n+'! ✅\')">Seguir</button></div>').join("");
+  const note=t=>'<div style="padding:20px;text-align:center;color:#aaa;font-size:13px;font-weight:700">'+t+'</div>';
+  clearTimeout(searchT);
+  searchT=setTimeout(async()=>{
+    if(!user){res.innerHTML=note("Inicia sesion para buscar personas");return;}
+    try{
+      const snap=await get(query(ref(db,"users"),orderByChild("nameLower"),startAt(q),endAt(q+"\uf8ff"),limitToFirst(20)));
+      const list=[];
+      snap.forEach(c=>{if(c.key!==user.uid)list.push(Object.assign({uid:c.key},c.val()));});
+      if(!list.length){res.innerHTML=note("No se encontraron usuarios");return;}
+      res.innerHTML=list.map(u=>'<div class="userResult" data-uid="'+esc(u.uid)+'"><div class="userAv">'+esc(u.emoji)+'</div><div><div class="userName">'+esc(u.name)+'</div><div class="userSub">Toca para chatear</div></div><button class="followBtn">Mensaje</button></div>').join("");
+      res.querySelectorAll(".userResult").forEach(el=>{
+        const u=list.find(x=>x.uid===el.dataset.uid);
+        el.onclick=()=>{closeScreen("brujula");openChat(u.uid,u.name,u.emoji);};
+      });
+    }catch(e){res.innerHTML=note("No se pudo buscar. Revisa las reglas de Firebase");}
+  },300);
 };
 </script>
 
@@ -788,6 +844,5 @@ function toast(msg){
 }
 window.toast=toast;
 </script>
-<script>if("serviceWorker" in navigator&&!window.Capacitor&&location.protocol.startsWith("http")){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
 </body>
 </html>
