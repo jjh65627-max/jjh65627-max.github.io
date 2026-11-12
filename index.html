@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ChatRT">
+<link rel="manifest" href="manifest.json">
+<title>ChatRT</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;overflow:hidden;user-select:none}
+
+#splash{position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:sOut 0.5s ease 2s forwards}
+.sLogo{width:86px;height:86px;border-radius:26px;background:linear-gradient(135deg,#6c3fc5,#9b5de5);display:flex;align-items:center;justify-content:center;font-size:40px;animation:pulse 1.2s ease infinite;box-shadow:0 8px 32px rgba(108,63,197,0.3)}
+.sName{font-size:30px;font-weight:900;color:#6c3fc5;letter-spacing:-1px}
+.sSub{color:#aaa;font-size:12px;letter-spacing:2px}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes sOut{to{opacity:0;pointer-events:none;visibility:hidden}}
+@keyframes fadeIn{to{opacity:1}}
+
+#loginScreen{position:fixed;inset:0;z-index:500;background:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px;gap:18px}
+#loginScreen.show{display:flex}
+.lLogo{width:70px;height:70px;border-radius:22px;background:linear-gradient(135deg,#6c3fc5,#9b5de5);display:flex;align-items:center;justify-content:center;font-size:32px}
+.lTitle{font-size:26px;font-weight:900;color:#1a1a1a;letter-spacing:-1px}
+.lSub{color:#aaa;font-size:14px;text-align:center}
+.lForm{width:100%;display:flex;flex-direction:column;gap:12px}
+.lInput{background:#f5f5f5;border:1.5px solid #e0e0e0;border-radius:14px;padding:14px 16px;color:#1a1a1a;font-family:"Outfit",sans-serif;font-size:15px;outline:none;width:100%}
+.lInput:focus{border-color:#6c3fc5;background:#fff}
+.lBtn{background:linear-gradient(135deg,#6c3fc5,#9b5de5);border:none;border-radius:14px;padding:15px;color:#fff;font-family:"Outfit",sans-serif;font-size:16px;font-weight:800;cursor:pointer;width:100%}
+.lSwitch{color:#aaa;font-size:13px;text-align:center;cursor:pointer}
+.lSwitch span{color:#6c3fc5;font-weight:700}
+.lErr{color:#e74c3c;font-size:13px;text-align:center;display:none}
+
+#app{height:100dvh;display:flex;flex-direction:row;opacity:0;animation:fadeIn 0.4s ease 2.4s forwards;position:relative}
+
+/* LEFT videos */
+#videoSide{flex:1;position:relative;overflow:hidden;background:#000}
+.videoFeed{height:100%;display:flex;flex-direction:column;transition:transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94)}
+.videoSlide{height:100dvh;width:100%;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.videoInfo{position:absolute;bottom:20px;left:14px;right:60px}
+.videoUser{font-size:14px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.5);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.videoDesc{font-size:12px;color:rgba(255,255,255,0.85);text-shadow:0 1px 4px rgba(0,0,0,0.5);line-height:1.4}
+.videoTags{font-size:12px;color:#a78bfa;margin-top:3px}
+
+/* Right actions on video */
+.videoActions{position:absolute;right:10px;bottom:80px;display:flex;flex-direction:column;gap:18px;align-items:center}
+.vAct{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.vAct svg{width:26px;height:26px;stroke:#fff;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));transition:all .2s}
+.vAct.liked svg{stroke:#ef4444;fill:#ef4444}
+.vAct.saved svg{stroke:#a78bfa;fill:#a78bfa}
+.vAct span{font-size:10px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,0.5)}
+.expandBtn{position:absolute;top:14px;right:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.18);backdrop-filter:blur(8px);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.expandBtn svg{width:16px;height:16px;stroke:#fff}
+
+/* RIGHT nav */
+#navSide{width:72px;background:#fff;display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:6px;border-left:1px solid #f0f0f0;transition:all 0.3s}
+#navSide.hidden{width:0;overflow:hidden;padding:0;border:none}
+.navItem{display:flex;flex-direction:column;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;cursor:pointer;gap:3px;transition:background .15s}
+.navItem:active{background:#f5f0ff}
+.navItem.active{background:#f5f0ff}
+.navItem svg{width:26px;height:26px;stroke:#1a1a1a;stroke-width:2.5}
+.navItem.active svg{stroke:#6c3fc5}
+.navLabel{font-size:9px;font-weight:900;color:#1a1a1a;letter-spacing:0.3px}
+.navItem.active .navLabel{color:#6c3fc5}
+.navSpacer{flex:1}
+.navDiv{width:40px;height:1px;background:#f0f0f0;margin:2px 0}
+
+/* BOTTOM NAV fullscreen */
+#bottomNav{display:none;position:fixed;bottom:0;left:0;right:0;height:62px;background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border-top:1px solid #f0f0f0;align-items:center;justify-content:space-around;z-index:100}
+.bnItem{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:6px 12px;border-radius:12px}
+.bnItem svg{width:22px;height:22px;stroke:#1a1a1a;stroke-width:2.5}
+.bnItem.active svg{stroke:#6c3fc5}
+.bnItem span{font-size:10px;font-weight:900;color:#1a1a1a}
+.bnItem.active span{color:#6c3fc5}
+
+/* FULLSCREEN */
+#app.fullscreen #navSide{width:0;overflow:hidden;padding:0;border:none}
+#app.fullscreen #bottomNav{display:flex}
+
+/* SCREEN OVERLAYS */
+.sOverlay{position:fixed;inset:0;z-index:200;background:#fff;display:none;flex-direction:column}
+.sOverlay.open{display:flex}
+.sHead{padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:12px;background:#fff;position:sticky;top:0;z-index:10}
+.sBack{font-size:28px;color:#6c3fc5;cursor:pointer;font-weight:300;line-height:1}
+.sTitle{font-size:20px;font-weight:900;color:#1a1a1a}
+.sBody{flex:1;overflow-y:auto;scrollbar-width:none}
+.sBody::-webkit-scrollbar{display:none}
+
+/* MESSAGES with stories on top */
+.storiesRow{display:flex;gap:12px;padding:12px 14px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid #f0f0f0}
+.storiesRow::-webkit-scrollbar{display:none}
+.stItem{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;cursor:pointer}
+.stRing{width:54px;height:54px;border-radius:50%;padding:2px;background:linear-gradient(135deg,#6c3fc5,#ec4899,#f97316)}
+.stRing.me{background:#e0e0e0}
+.stImg{width:100%;height:100%;border-radius:50%;border:2px solid #fff;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:18px}
+.stAdd{font-size:10px;font-weight:900;color:#aaa;margin-top:-2px}
+.stName{font-size:9px;color:#888;font-weight:700;max-width:54px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.msgItem{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s}
+.msgItem:active{background:#f9f9f9}
+.msgAv{width:50px;height:50px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:22px;position:relative;flex-shrink:0}
+.msgOnline{position:absolute;bottom:1px;right:1px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #fff}
+.msgInfo{flex:1;min-width:0}
+.msgName{font-weight:900;font-size:15px;color:#1a1a1a;margin-bottom:2px}
+.msgPrev{font-size:13px;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msgMeta{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.msgTime{font-size:11px;color:#aaa}
+.msgBadge{min-width:20px;height:20px;border-radius:10px;background:#6c3fc5;color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+/* CHAT */
+.chatHead{padding:12px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;background:#fff}
+.chatBack{font-size:28px;color:#6c3fc5;cursor:pointer;line-height:1}
+.chatAvSm{width:36px;height:36px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:18px}
+.chatNameSm{font-weight:900;font-size:15px;color:#1a1a1a}
+.chatOnline{font-size:11px;color:#22c55e;font-weight:600}
+.chatMsgs{flex:1;overflow-y:auto;padding:12px 12px 80px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none}
+.chatMsgs::-webkit-scrollbar{display:none}
+.mWrap{display:flex;flex-direction:column}
+.mWrap.sent{align-items:flex-end}
+.mWrap.recv{align-items:flex-start}
+.bSender{font-size:11px;color:#aaa;margin-bottom:3px;padding:0 4px;font-weight:700}
+.bubble{max-width:74%;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.5;word-break:break-word}
+.bubble.sent{background:linear-gradient(135deg,#6c3fc5,#9b5de5);color:#fff;border-bottom-right-radius:4px}
+.bubble.recv{background:#f0f0f0;color:#1a1a1a;border-bottom-left-radius:4px}
+.bTime{font-size:10px;color:#aaa;margin-top:3px;padding:0 4px}
+.chatBar{position:sticky;bottom:0;background:rgba(255,255,255,0.97);backdrop-filter:blur(16px);border-top:1px solid #f0f0f0;padding:10px 12px;display:flex;gap:8px;align-items:center}
+.chatInp{flex:1;background:#f5f5f5;border:1.5px solid #e0e0e0;border-radius:20px;padding:10px 16px;color:#1a1a1a;font-family:"Outfit",sans-serif;font-size:15px;outline:none}
+.chatInp:focus{border-color:#6c3fc5}
+.sendBtn{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#6c3fc5,#9b5de5);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.sendBtn svg{width:17px;height:17px;stroke:#fff;stroke-width:2.5}
+
+/* BRUJULA */
+.bTags{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;scrollbar-width:none}
+.bTag{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;background:#f0f0f0;color:#1a1a1a;border:none}
+.bTag.active{background:#6c3fc5;color:#fff}
+.bSearch{margin:0 12px 10px;background:#f5f5f5;border:1.5px solid #e0e0e0;border-radius:14px;display:flex;align-items:center;gap:8px;padding:10px 14px}
+.bSearch svg{width:16px;height:16px;stroke:#aaa;flex-shrink:0}
+.bSearch input{background:none;border:none;outline:none;color:#1a1a1a;font-family:"Outfit",sans-serif;font-size:14px;flex:1;font-weight:600}
+.bGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:3px;padding:0 12px}
+.bItem{aspect-ratio:1;border-radius:12px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;font-size:48px}
+.bItem.tall{grid-row:span 2}
+.bItemLabel{position:absolute;bottom:8px;left:8px;font-size:11px;font-weight:900;color:#fff;background:rgba(0,0,0,0.4);padding:2px 8px;border-radius:6px}
+
+/* SEARCH USERS */
+.userResult{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
+.userResult:active{background:#f9f9f9}
+.userAv{width:44px;height:44px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.userName{font-weight:800;font-size:14px;color:#1a1a1a}
+.userSub{font-size:12px;color:#aaa}
+.followBtn{margin-left:auto;padding:6px 16px;border-radius:20px;background:linear-gradient(135deg,#6c3fc5,#9b5de5);color:#fff;border:none;font-family:"Outfit",sans-serif;font-size:12px;font-weight:800;cursor:pointer}
+
+/* COMMENTS */
+.commentsPanel{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.5);display:none;align-items:flex-end}
+.commentsPanel.open{display:flex}
+.commentsSheet{width:100%;background:#fff;border-radius:24px 24px 0 0;height:65vh;display:flex;flex-direction:column}
+.commentsHead{padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between}
+.commentsTitle{font-size:16px;font-weight:900;color:#1a1a1a}
+.commentsClose{font-size:24px;color:#aaa;cursor:pointer;line-height:1}
+.commentsList{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px;scrollbar-width:none}
+.commentsList::-webkit-scrollbar{display:none}
+.commentItem{display:flex;gap:10px;align-items:flex-start}
+.commentAv{width:32px;height:32px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.commentBody{flex:1;background:#f5f5f5;border-radius:14px;padding:8px 12px}
+.commentUser{font-size:12px;font-weight:900;color:#1a1a1a;margin-bottom:2px}
+.commentText{font-size:13px;color:#333;line-height:1.4}
+.commentsBar{padding:10px 12px;border-top:1px solid #f0f0f0;display:flex;gap:8px}
+.commentInp{flex:1;background:#f5f5f5;border:1.5px solid #e0e0e0;border-radius:20px;padding:10px 14px;color:#1a1a1a;font-family:"Outfit",sans-serif;font-size:14px;outline:none}
+.commentInp:focus{border-color:#6c3fc5}
+.commentSend{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#6c3fc5,#9b5de5);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.commentSend svg{width:15px;height:15px;stroke:#fff;stroke-width:2.5}
+
+/* PROFILE */
+.profWrap{padding:20px 16px}
+.profTopRow{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.profAvBig{width:80px;height:80px;border-radius:24px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:36px;border:3px solid #f0e8ff}
+.profMenu{width:36px;height:36px;border-radius:50%;background:#f5f5f5;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.profMenu svg{width:18px;height:18px;stroke:#1a1a1a}
+.profNameBig{font-size:20px;font-weight:900;color:#1a1a1a;margin-bottom:4px}
+.profBioBig{font-size:13px;color:#aaa;line-height:1.5;margin-bottom:16px}
+.profStats{display:flex;background:#f9f9f9;border-radius:16px;padding:12px 0;margin-bottom:16px}
+.profStat{flex:1;text-align:center;cursor:pointer}
+.profStatN{font-size:17px;font-weight:900;color:#1a1a1a;display:block}
+.profStatL{font-size:10px;color:#aaa;font-weight:700}
+.profBtn{flex:1;padding:10px;border-radius:12px;background:#f0f0f0;border:none;color:#1a1a1a;font-family:"Outfit",sans-serif;font-size:13px;font-weight:900;cursor:pointer}
+.logoutBtn{width:100%;padding:11px;border-radius:12px;background:none;border:1.5px solid #ffcdd2;color:#e74c3c;font-family:"Outfit",sans-serif;font-size:13px;font-weight:900;cursor:pointer;margin-bottom:16px}
+.profTabs{display:flex;border-bottom:1px solid #f0f0f0;margin-bottom:2px}
+.profTab{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer;border-bottom:2px solid transparent}
+.profTab.active{border-bottom-color:#6c3fc5}
+.profTab svg{width:20px;height:20px;stroke:#aaa;stroke-width:2.5}
+.profTab.active svg{stroke:#6c3fc5}
+.profGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+.profGItem{aspect-ratio:1;background:#f0f0f0;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.savedEmpty{padding:40px;text-align:center;color:#aaa;font-size:14px;font-weight:700}
+
+/* EDIT & OPTIONS */
+.overlay{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .22s}
+.overlay.open{opacity:1;pointer-events:all}
+.sheet{width:100%;background:#fff;border-radius:24px 24px 0 0;padding:16px 20px 40px;transform:translateY(100%);transition:transform .32s cubic-bezier(.34,1.1,.64,1)}
+.overlay.open .sheet{transform:translateY(0)}
+.shHandle{width:36px;height:4px;border-radius:2px;background:#e0e0e0;margin:0 auto 20px}
+.shTitle{font-size:18px;font-weight:900;margin-bottom:20px;color:#1a1a1a}
+.field{margin-bottom:14px}
+.fLabel{font-size:12px;color:#aaa;margin-bottom:5px;font-weight:700}
+.fInput{width:100%;background:#f5f5f5;border:1.5px solid #e0e0e0;border-radius:12px;padding:12px 14px;color:#1a1a1a;font-family:"Outfit",sans-serif;font-size:15px;outline:none}
+.fInput:focus{border-color:#6c3fc5}
+.fSave{width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,#6c3fc5,#9b5de5);border:none;color:#fff;font-family:"Outfit",sans-serif;font-size:16px;font-weight:900;cursor:pointer;margin-top:6px}
+.menuOpt{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #f5f5f5;cursor:pointer;font-size:15px;font-weight:700;color:#1a1a1a}
+.menuOpt:last-child{border-bottom:none}
+.menuOpt svg{width:20px;height:20px;stroke:#aaa}
+.menuOpt.red{color:#e74c3c}
+.menuOpt.red svg{stroke:#e74c3c}
+
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;font-weight:700}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="splash"><div class="sLogo">⚡</div><div class="sName">ChatRT</div><div class="sSub">COMPARTE TU MUNDO</div></div>
+
+<div id="loginScreen">
+  <div class="lLogo">⚡</div>
+  <div class="lTitle">ChatRT</div>
+  <div class="lSub" id="lSub">Inicia sesion para continuar</div>
+  <div class="lForm">
+    <input class="lInput" id="inpName" type="text" placeholder="Nombre de usuario" style="display:none">
+    <input class="lInput" id="inpEmail" type="email" placeholder="Correo electronico">
+    <input class="lInput" id="inpPass" type="password" placeholder="Contrasena">
+    <div class="lErr" id="lErr"></div>
+    <button class="lBtn" id="authBtn" onclick="doAuth()">Iniciar sesion</button>
+    <div class="lSwitch" id="lSwitch" onclick="toggleMode()">No tienes cuenta? <span>Registrate</span></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="app">
+  <div id="videoSide">
+    <div class="videoFeed" id="videoFeed">
+
+      <div class="videoSlide" style="background:linear-gradient(160deg,#1a1a2e,#16213e,#0f3460)">
+        <div style="font-size:90px">🏔️</div>
+        <div class="videoInfo">
+          <div class="videoUser"><span style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:13px">🌿</span>aria.photos</div>
+          <div class="videoDesc">Las montanas de la Patagonia al amanecer ✨</div>
+          <div class="videoTags">#patagonia #naturaleza #viaje</div>
+        </div>
+        <div class="videoActions">
+          <div class="vAct" id="like-0" onclick="vLike(0,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke-linecap="round"/></svg>
+            <span id="lc-0">8.2k</span>
+          </div>
+          <div class="vAct" onclick="openComments(0,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round"/></svg>
+            <span>Comentar</span>
+          </div>
+          <div class="vAct" id="save-0" onclick="vSave(0,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><polygon points="19 21 12 16 5 21 5 3 19 3 19 21" stroke-linecap="round"/></svg>
+            <span>Guardar</span>
+          </div>
+          <div class="vAct" onclick="openScreen('msgs');stopEv(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13" stroke-linecap="round"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <span>Enviar</span>
+          </div>
+        </div>
+        <button class="expandBtn" onclick="toggleFS(event)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round"/></svg></button>
+      </div>
+
+      <div class="videoSlide" style="background:linear-gradient(160deg,#2d1b69,#11998e,#38ef7d)">
+        <div style="font-size:90px">🎨</div>
+        <div class="videoInfo">
+          <div class="videoUser"><span style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:13px">😊</span>carlos.art</div>
+          <div class="videoDesc">Nueva obra terminada despues de 3 semanas 🔥</div>
+          <div class="videoTags">#arte #digital #creatividad</div>
+        </div>
+        <div class="videoActions">
+          <div class="vAct" id="like-1" onclick="vLike(1,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke-linecap="round"/></svg>
+            <span id="lc-1">3.7k</span>
+          </div>
+          <div class="vAct" onclick="openComments(1,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round"/></svg>
+            <span>Comentar</span>
+          </div>
+          <div class="vAct" id="save-1" onclick="vSave(1,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><polygon points="19 21 12 16 5 21 5 3 19 3 19 21" stroke-linecap="round"/></svg>
+            <span>Guardar</span>
+          </div>
+          <div class="vAct" onclick="openScreen('msgs');stopEv(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13" stroke-linecap="round"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <span>Enviar</span>
+          </div>
+        </div>
+        <button class="expandBtn" onclick="toggleFS(event)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round"/></svg></button>
+      </div>
+
+      <div class="videoSlide" style="background:linear-gradient(160deg,#f093fb,#f5576c,#fda085)">
+        <div style="font-size:90px">🌊</div>
+        <div class="videoInfo">
+          <div class="videoUser"><span style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:13px">👩</span>luna_vibes</div>
+          <div class="videoDesc">El mar en calma me da paz 🌊✨</div>
+          <div class="videoTags">#mar #viaje #naturaleza</div>
+        </div>
+        <div class="videoActions">
+          <div class="vAct" id="like-2" onclick="vLike(2,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke-linecap="round"/></svg>
+            <span id="lc-2">12.1k</span>
+          </div>
+          <div class="vAct" onclick="openComments(2,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round"/></svg>
+            <span>Comentar</span>
+          </div>
+          <div class="vAct" id="save-2" onclick="vSave(2,event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><polygon points="19 21 12 16 5 21 5 3 19 3 19 21" stroke-linecap="round"/></svg>
+            <span>Guardar</span>
+          </div>
+          <div class="vAct" onclick="openScreen('msgs');stopEv(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13" stroke-linecap="round"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <span>Enviar</span>
+          </div>
+        </div>
+        <button class="expandBtn" onclick="toggleFS(event)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round"/></svg></button>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="navSide">
+    <div class="navItem active" onclick="toast('Ya estas en inicio')">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="navLabel">Inicio</span>
+    </div>
+    <div class="navDiv"></div>
+    <div class="navItem" onclick="openScreen('msgs')">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="navLabel">Mensajes</span>
+    </div>
+    <div class="navDiv"></div>
+    <div class="navItem" onclick="openScreen('brujula')">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+      <span class="navLabel">Brujula</span>
+    </div>
+    <div class="navDiv"></div>
+    <div class="navItem" onclick="openScreen('notifs')">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="navLabel">Avisos</span>
+    </div>
+    <div class="navSpacer"></div>
+    <div class="navItem" onclick="openScreen('perfil')">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="navLabel">Perfil</span>
+    </div>
+  </div>
+
+  <div id="bottomNav">
+    <div class="bnItem" onclick="openScreen('msgs')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Mensajes</span></div>
+    <div class="bnItem" onclick="openScreen('brujula')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg><span>Brujula</span></div>
+    <div class="bnItem active"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Inicio</span></div>
+    <div class="bnItem" onclick="openScreen('perfil')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Perfil</span></div>
+  </div>
+</div>
+
+<!-- MESSAGES with stories -->
+<div class="sOverlay" id="screen-msgs">
+  <div class="sHead"><div class="sBack" onclick="closeScreen('msgs')">&#x2039;</div><div class="sTitle">Mensajes</div></div>
+  <div class="sBody">
+    <div class="storiesRow">
+      <div class="stItem"><div class="stRing me"><div class="stImg" id="myStAv">🧑</div></div><div class="stName">Tu historia</div></div>
+      <div class="stItem"><div class="stRing"><div class="stImg">🌿</div></div><div class="stName">aria</div></div>
+      <div class="stItem"><div class="stRing"><div class="stImg">😊</div></div><div class="stName">carlos</div></div>
+      <div class="stItem"><div class="stRing"><div class="stImg">👩</div></div><div class="stName">luna</div></div>
+      <div class="stItem"><div class="stRing"><div class="stImg">🎨</div></div><div class="stName">sofia</div></div>
+    </div>
+    <div class="msgItem" onclick="openChat('aria.photos','🌿')"><div class="msgAv">🌿<div class="msgOnline"></div></div><div class="msgInfo"><div class="msgName">aria.photos</div><div class="msgPrev">Chat en tiempo real 🔥</div></div><div class="msgMeta"><div class="msgTime">ahora</div><div class="msgBadge">!</div></div></div>
+    <div class="msgItem" onclick="openChat('carlos.art','😊')"><div class="msgAv">😊<div class="msgOnline"></div></div><div class="msgInfo"><div class="msgName">carlos.art</div><div class="msgPrev">El arte es mi vida 🎨</div></div><div class="msgMeta"><div class="msgTime">1h</div></div></div>
+    <div class="msgItem" onclick="openChat('luna_vibes','👩')"><div class="msgAv">👩<div class="msgOnline"></div></div><div class="msgInfo"><div class="msgName">luna_vibes</div><div class="msgPrev">Gracias! 💜</div></div><div class="msgMeta"><div class="msgTime">3h</div><div class="msgBadge">2</div></div></div>
+    <div class="msgItem" onclick="openChat('sofia.crea','🎨')"><div class="msgAv">🎨</div><div class="msgInfo"><div class="msgName">sofia.crea</div><div class="msgPrev">Te mando la receta 🍕</div></div><div class="msgMeta"><div class="msgTime">1d</div></div></div>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div class="sOverlay" id="screen-chat">
+  <div class="chatHead">
+    <div class="chatBack" onclick="closeScreen('chat');openScreen('msgs')">&#x2039;</div>
+    <div class="chatAvSm" id="chatAv">🌿</div>
+    <div><div class="chatNameSm" id="chatName">aria.photos</div><div class="chatOnline">En linea</div></div>
+  </div>
+  <div class="chatMsgs" id="chatMsgs"></div>
+  <div class="chatBar">
+    <input class="chatInp" id="chatInp" type="text" placeholder="Escribe algo..." onkeypress="if(event.key==='Enter')sendMsg()">
+    <button class="sendBtn" onclick="sendMsg()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13" stroke-linecap="round" stroke-linejoin="round"/><polygon points="22 2 15 22 11 13 2 9 22 2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </div>
+</div>
+
+<!-- BRUJULA -->
+<div class="sOverlay" id="screen-brujula">
+  <div class="sHead"><div class="sBack" onclick="closeScreen('brujula')">&#x2039;</div><div class="sTitle">🧭 Brujula</div></div>
+  <div class="sBody">
+    <div class="bSearch"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2" stroke-linecap="round"/></svg><input type="text" placeholder="Buscar usuarios..." oninput="searchUsers(this.value)" id="userSearch"></div>
+    <div id="searchResults" style="display:none"></div>
+    <div id="bruContent">
+      <div class="bTags"><div class="bTag active">Todo</div><div class="bTag">Videos</div><div class="bTag">Fotos</div><div class="bTag">Arte</div><div class="bTag">Viajes</div></div>
+      <div class="bGrid">
+        <div class="bItem tall" style="background:linear-gradient(135deg,#667eea,#764ba2)">🏔️<div class="bItemLabel">Naturaleza</div></div>
+        <div class="bItem" style="background:linear-gradient(135deg,#f093fb,#f5576c)">🎨<div class="bItemLabel">Arte</div></div>
+        <div class="bItem" style="background:linear-gradient(135deg,#4facfe,#00f2fe)">🌊<div class="bItemLabel">Mar</div></div>
+        <div class="bItem tall" style="background:linear-gradient(135deg,#43e97b,#38f9d7)">🍕<div class="bItemLabel">Comida</div></div>
+        <div class="bItem" style="background:linear-gradient(135deg,#fa709a,#fee140)">🌅<div class="bItemLabel">Atardecer</div></div>
+        <div class="bItem" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb)">🐕<div class="bItemLabel">Mascotas</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFS -->
+<div class="sOverlay" id="screen-notifs">
+  <div class="sHead"><div class="sBack" onclick="closeScreen('notifs')">&#x2039;</div><div class="sTitle">Notificaciones</div></div>
+  <div class="sBody" style="display:flex;align-items:center;justify-content:center;padding-top:80px;color:#aaa;font-size:14px;font-weight:700;flex-direction:column;gap:8px"><span style="font-size:48px">🔔</span>No hay notificaciones aun</div>
+</div>
+
+<!-- PERFIL -->
+<div class="sOverlay" id="screen-perfil">
+  <div class="sHead">
+    <div class="sBack" onclick="closeScreen('perfil')">&#x2039;</div>
+    <div class="sTitle" id="profNameHead">Mi Perfil</div>
+    <button class="profMenu" style="margin-left:auto" onclick="openOverlay('menuOv')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><circle cx="12" cy="5" r="1" fill="#1a1a1a"/><circle cx="12" cy="12" r="1" fill="#1a1a1a"/><circle cx="12" cy="19" r="1" fill="#1a1a1a"/></svg>
+    </button>
+  </div>
+  <div class="sBody">
+    <div class="profWrap">
+      <div class="profAvBig" id="profEmoji">🧑</div>
+      <div class="profNameBig" id="profName">usuario</div>
+      <div class="profBioBig" id="profBio">Mi cuenta en ChatRT ✨</div>
+      <div class="profStats">
+        <div class="profStat"><span class="profStatN">0</span><span class="profStatL">videos</span></div>
+        <div class="profStat"><span class="profStatN" id="profFollowers">—</span><span class="profStatL">seguidores</span></div>
+        <div class="profStat"><span class="profStatN">0</span><span class="profStatL">siguiendo</span></div>
+      </div>
+      <button class="profBtn" onclick="openOverlay('editOv')" style="width:100%;margin-bottom:12px">Editar perfil</button>
+      <button class="logoutBtn" onclick="doLogout()">Cerrar sesion</button>
+      <div class="profTabs">
+        <div class="profTab active" id="tab-posts" onclick="switchTab('posts')"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke-linecap="round" stroke-linejoin="round"/><rect x="14" y="3" width="7" height="7" stroke-linecap="round" stroke-linejoin="round"/><rect x="14" y="14" width="7" height="7" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="14" width="7" height="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="profTab" id="tab-saved" onclick="switchTab('saved')"><svg viewBox="0 0 24 24" fill="none"><polygon points="19 21 12 16 5 21 5 3 19 3 19 21" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+    </div>
+    <div id="grid-posts" class="profGrid"><div class="profGItem">🏔️</div><div class="profGItem">🎨</div><div class="profGItem">🌊</div><div class="profGItem">🍕</div><div class="profGItem">🌄</div><div class="profGItem">✨</div></div>
+    <div id="grid-saved" style="display:none"><div class="savedEmpty">No tienes nada guardado aun</div></div>
+  </div>
+</div>
+
+<!-- COMMENTS PANEL -->
+<div class="commentsPanel" id="commentsPanel" onclick="if(event.target===this)closeComments()">
+  <div class="commentsSheet">
+    <div class="commentsHead"><div class="commentsTitle">Comentarios</div><div class="commentsClose" onclick="closeComments()">×</div></div>
+    <div class="commentsList" id="commentsList"></div>
+    <div class="commentsBar">
+      <input class="commentInp" id="commentInp" type="text" placeholder="Escribe un comentario..." onkeypress="if(event.key==='Enter')postComment()">
+      <button class="commentSend" onclick="postComment()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13" stroke-linecap="round" stroke-linejoin="round"/><polygon points="22 2 15 22 11 13 2 9 22 2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT OVERLAY -->
+<div class="overlay" id="editOv" onclick="if(event.target===this)closeOverlay('editOv')">
+  <div class="sheet">
+    <div class="shHandle"></div>
+    <div class="shTitle">Editar perfil</div>
+    <div class="field"><div class="fLabel">Nombre</div><input class="fInput" id="eName" type="text"></div>
+    <div class="field"><div class="fLabel">Bio</div><input class="fInput" id="eBio" type="text"></div>
+    <div class="field"><div class="fLabel">Emoji</div><input class="fInput" id="eEmoji" type="text" maxlength="2"></div>
+    <button class="fSave" onclick="saveProfile()">Guardar</button>
+  </div>
+</div>
+
+<!-- MENU 3 PUNTITOS -->
+<div class="overlay" id="menuOv" onclick="if(event.target===this)closeOverlay('menuOv')">
+  <div class="sheet">
+    <div class="shHandle"></div>
+    <div class="shTitle">Opciones</div>
+    <div class="menuOpt" onclick="toast('Enlace copiado!');closeOverlay('menuOv')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16 6 12 2 8 6" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="2" x2="12" y2="15" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Compartir perfil
+    </div>
+    <div class="menuOpt" onclick="openOverlay('editOv');closeOverlay('menuOv')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Editar perfil
+    </div>
+    <div class="menuOpt red" onclick="doLogout();closeOverlay('menuOv')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16 17 21 12 16 7" stroke-linecap="round" stroke-linejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Cerrar sesion
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+import { getDatabase, ref, push, onValue, get, set, remove } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyCgE6UMwLZc6iteDzAjbWMZr2ZKjQb04VQ",
+  authDomain: "chatrt-e342d.firebaseapp.com",
+  databaseURL: "https://chatrt-e342d-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "chatrt-e342d",
+  storageBucket: "chatrt-e342d.firebasestorage.app",
+  messagingSenderId: "998994699036",
+  appId: "1:998994699036:web:267a8ce2f1b4f5c8a2b3d4"
+});
+const auth = getAuth(app);
+const db = getDatabase(app);
+let user=null, chatId=null, unsub=null, unsubComments=null, isReg=false, curPost=null;
+
+onAuthStateChanged(auth, async u=>{
+  user=u;
+  if(u){
+    document.getElementById("loginScreen").classList.remove("show");
+    const name=u.displayName||u.email.split("@")[0];
+    const emoji=localStorage.getItem("pEmoji")||"🧑";
+    document.getElementById("profName").textContent=name;
+    document.getElementById("profNameHead").textContent=name;
+    document.getElementById("profBio").textContent=localStorage.getItem("pBio")||"Mi cuenta en ChatRT ✨";
+    document.getElementById("profEmoji").textContent=emoji;
+    document.getElementById("myStAv").textContent=emoji;
+    // Load user likes from Firebase
+    loadUserLikes(u.uid);
+    loadUserSaves(u.uid);
+    try{const s=await get(ref(db,"followers/"+u.uid));document.getElementById("profFollowers").textContent=s.exists()?Object.keys(s.val()).length:"—";}catch(e){}
+  } else {
+    setTimeout(()=>document.getElementById("loginScreen").classList.add("show"),2500);
+  }
+});
+
+async function loadUserLikes(uid){
+  try{
+    const s=await get(ref(db,"userLikes/"+uid));
+    if(s.exists()){
+      Object.keys(s.val()).forEach(postId=>{
+        const btn=document.getElementById("like-"+postId);
+        if(btn){
+          btn.classList.add("liked");
+          const svg=btn.querySelector("svg");
+          svg.setAttribute("fill","#ef4444");svg.setAttribute("stroke","#ef4444");
+        }
+      });
+    }
+  }catch(e){}
+}
+
+async function loadUserSaves(uid){
+  try{
+    const s=await get(ref(db,"userSaves/"+uid));
+    if(s.exists()){
+      Object.keys(s.val()).forEach(postId=>{
+        const btn=document.getElementById("save-"+postId);
+        if(btn){btn.classList.add("saved");const svg=btn.querySelector("svg");svg.setAttribute("fill","#a78bfa");svg.setAttribute("stroke","#a78bfa");}
+      });
+      document.getElementById("grid-saved").innerHTML=
+        Object.keys(s.val()).map(id=>'<div class="profGItem" style="font-size:28px">'+["🏔️","🎨","🌊"][parseInt(id)||0]+'</div>').join("");
+    }
+  }catch(e){}
+}
+
+window.doAuth=async function(){
+  const email=document.getElementById("inpEmail").value.trim();
+  const pass=document.getElementById("inpPass").value;
+  const err=document.getElementById("lErr");
+  err.style.display="none";
+  if(!email||!pass){err.textContent="Completa todos los campos";err.style.display="block";return;}
+  try{
+    if(isReg){
+      const name=document.getElementById("inpName").value||"Usuario";
+      const c=await createUserWithEmailAndPassword(auth,email,pass);
+      await updateProfile(c.user,{displayName:name});
+      toast("Bienvenido a ChatRT! 🎉");
+    }else{
+      await signInWithEmailAndPassword(auth,email,pass);
+      toast("Bienvenido de nuevo! ⚡");
+    }
+  }catch(e){
+    const m={"auth/user-not-found":"Usuario no encontrado","auth/wrong-password":"Contrasena incorrecta","auth/email-already-in-use":"Email ya registrado","auth/weak-password":"Minimo 6 caracteres","auth/invalid-credential":"Email o contrasena incorrectos"};
+    err.textContent=m[e.code]||e.message;err.style.display="block";
+  }
+};
+window.toggleMode=function(){
+  isReg=!isReg;
+  document.getElementById("inpName").style.display=isReg?"block":"none";
+  document.getElementById("lSub").textContent=isReg?"Crea tu cuenta gratis":"Inicia sesion para continuar";
+  document.getElementById("authBtn").textContent=isReg?"Crear cuenta":"Iniciar sesion";
+  document.getElementById("lSwitch").innerHTML=isReg?"Ya tienes cuenta? <span>Inicia sesion</span>":"No tienes cuenta? <span>Registrate</span>";
+};
+window.doLogout=async function(){await signOut(auth);closeScreen("perfil");toast("Hasta pronto! 👋");};
+
+window.vLike=async function(id,e){
+  e.stopPropagation();
+  if(!user){toast("Inicia sesion para dar like");return;}
+  const btn=document.getElementById("like-"+id);
+  const isLiked=btn.classList.contains("liked");
+  const svg=btn.querySelector("svg");
+  if(isLiked){
+    btn.classList.remove("liked");
+    svg.setAttribute("fill","none");svg.setAttribute("stroke","#fff");
+    await remove(ref(db,"userLikes/"+user.uid+"/"+id));
+    await remove(ref(db,"postLikes/"+id+"/"+user.uid));
+  }else{
+    btn.classList.add("liked");
+    svg.setAttribute("fill","#ef4444");svg.setAttribute("stroke","#ef4444");
+    btn.style.transform="scale(1.3)";setTimeout(()=>btn.style.transform="",200);
+    await set(ref(db,"userLikes/"+user.uid+"/"+id),true);
+    await set(ref(db,"postLikes/"+id+"/"+user.uid),true);
+  }
+};
+
+window.vSave=async function(id,e){
+  e.stopPropagation();
+  if(!user){toast("Inicia sesion para guardar");return;}
+  const btn=document.getElementById("save-"+id);
+  const isSaved=btn.classList.contains("saved");
+  const svg=btn.querySelector("svg");
+  if(isSaved){
+    btn.classList.remove("saved");
+    svg.setAttribute("fill","none");svg.setAttribute("stroke","#fff");
+    await remove(ref(db,"userSaves/"+user.uid+"/"+id));
+    toast("Eliminado de guardados");
+  }else{
+    btn.classList.add("saved");
+    svg.setAttribute("fill","#a78bfa");svg.setAttribute("stroke","#a78bfa");
+    btn.style.transform="scale(1.3)";setTimeout(()=>btn.style.transform="",200);
+    await set(ref(db,"userSaves/"+user.uid+"/"+id),true);
+    toast("Guardado! 💜");
+  }
+};
+
+window.openComments=function(postId,e){
+  e.stopPropagation();
+  curPost=postId;
+  const list=document.getElementById("commentsList");
+  list.innerHTML="";
+  if(unsubComments)unsubComments();
+  unsubComments=onValue(ref(db,"comments/"+postId),snap=>{
+    list.innerHTML="";
+    if(!snap.exists()){
+      list.innerHTML='<div style="text-align:center;color:#aaa;padding:20px;font-size:13px;font-weight:700">Se el primero en comentar!</div>';
+      return;
+    }
+    snap.forEach(child=>{
+      const c=child.val();
+      const item=document.createElement("div");item.className="commentItem";
+      item.innerHTML='<div class="commentAv">'+c.emoji+'</div><div class="commentBody"><div class="commentUser">'+c.user+'</div><div class="commentText">'+c.text+'</div></div>';
+      list.appendChild(item);
+    });
+    list.scrollTop=list.scrollHeight;
+  });
+  document.getElementById("commentsPanel").classList.add("open");
+};
+window.closeComments=function(){
+  document.getElementById("commentsPanel").classList.remove("open");
+  if(unsubComments){unsubComments();unsubComments=null;}
+};
+window.postComment=async function(){
+  if(!user){toast("Inicia sesion para comentar");return;}
+  const inp=document.getElementById("commentInp");
+  const text=inp.value.trim();if(!text)return;inp.value="";
+  await push(ref(db,"comments/"+curPost),{
+    text,user:user.displayName||user.email.split("@")[0],
+    emoji:localStorage.getItem("pEmoji")||"🧑",ts:Date.now()
+  });
+};
+
+window.openChat=function(name,emoji){
+  if(!user){toast("Inicia sesion primero");return;}
+  document.getElementById("chatName").textContent=name;
+  document.getElementById("chatAv").textContent=emoji;
+  document.getElementById("chatMsgs").innerHTML="";
+  const key=btoa(encodeURIComponent(name)).replace(/[^a-zA-Z0-9]/g,"");
+  chatId=[user.uid,key].sort().join("_");
+  if(unsub)unsub();
+  unsub=onValue(ref(db,"chats/"+chatId),snap=>{
+    const c=document.getElementById("chatMsgs");c.innerHTML="";
+    snap.forEach(child=>{
+      const m=child.val(),sent=m.uid===user.uid;
+      const wrap=document.createElement("div");wrap.className="mWrap "+(sent?"sent":"recv");
+      if(!sent){const s=document.createElement("div");s.className="bSender";s.textContent=m.sender;wrap.appendChild(s);}
+      const b=document.createElement("div");b.className="bubble "+(sent?"sent":"recv");b.textContent=m.text;wrap.appendChild(b);
+      const t=document.createElement("div");t.className="bTime";t.textContent=new Date(m.ts).toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});wrap.appendChild(t);
+      c.appendChild(wrap);
+    });
+    c.scrollTop=c.scrollHeight;
+  });
+  closeScreen("msgs");
+  openScreen("chat");
+};
+window.sendMsg=function(){
+  if(!user||!chatId)return;
+  const inp=document.getElementById("chatInp");
+  const text=inp.value.trim();if(!text)return;inp.value="";
+  push(ref(db,"chats/"+chatId),{text,uid:user.uid,sender:user.displayName||user.email.split("@")[0],ts:Date.now()});
+};
+
+window.saveProfile=function(){
+  const name=document.getElementById("eName").value.trim();
+  const bio=document.getElementById("eBio").value.trim();
+  const emoji=document.getElementById("eEmoji").value.trim();
+  if(name&&auth.currentUser)updateProfile(auth.currentUser,{displayName:name});
+  if(bio)localStorage.setItem("pBio",bio);
+  if(emoji)localStorage.setItem("pEmoji",emoji);
+  if(name)document.getElementById("profName").textContent=name;
+  if(bio)document.getElementById("profBio").textContent=bio;
+  if(emoji){document.getElementById("profEmoji").textContent=emoji;document.getElementById("myStAv").textContent=emoji;}
+  closeOverlay("editOv");toast("Perfil actualizado! ✅");
+};
+
+window.searchUsers=function(q){
+  const res=document.getElementById("searchResults");
+  const cont=document.getElementById("bruContent");
+  if(!q){res.style.display="none";cont.style.display="block";return;}
+  cont.style.display="none";res.style.display="block";
+  const users=[{n:"aria.photos",e:"🌿",s:"Fotografia y naturaleza"},{n:"carlos.art",e:"😊",s:"Arte digital"},{n:"luna_vibes",e:"👩",s:"Lifestyle y decoracion"},{n:"sofia.crea",e:"🎨",s:"Cocina creativa"}];
+  const filtered=users.filter(u=>u.n.toLowerCase().includes(q.toLowerCase()));
+  if(filtered.length===0){res.innerHTML='<div style="padding:20px;text-align:center;color:#aaa;font-size:13px;font-weight:700">No se encontraron usuarios</div>';return;}
+  res.innerHTML=filtered.map(u=>'<div class="userResult"><div class="userAv">'+u.e+'</div><div><div class="userName">'+u.n+'</div><div class="userSub">'+u.s+'</div></div><button class="followBtn" onclick="toast(\'Siguiendo a '+u.n+'! ✅\')">Seguir</button></div>').join("");
+};
+</script>
+
+<script>
+let curSlide=0,totalSlides=3,startY=0,isFS=false;
+const feed=document.getElementById("videoFeed");
+const vs=document.getElementById("videoSide");
+
+vs.addEventListener("touchstart",e=>{startY=e.touches[0].clientY;},{passive:true});
+vs.addEventListener("touchend",e=>{
+  const diff=startY-e.changedTouches[0].clientY;
+  if(Math.abs(diff)>50){
+    if(diff>0&&curSlide<totalSlides-1)curSlide++;
+    else if(diff<0&&curSlide>0)curSlide--;
+    feed.style.transform="translateY(-"+curSlide+"00%)";
+  }
+},{passive:true});
+
+window.toggleFS=function(e){
+  e.stopPropagation();isFS=!isFS;
+  document.getElementById("app").classList.toggle("fullscreen",isFS);
+};
+window.stopEv=function(e){e.stopPropagation();};
+
+function openScreen(id){
+  const s=document.getElementById("screen-"+id);
+  if(s){s.style.display="flex";}
+}
+function closeScreen(id){
+  const s=document.getElementById("screen-"+id);
+  if(s){s.style.display="none";}
+}
+window.openScreen=openScreen;
+window.closeScreen=closeScreen;
+
+function openOverlay(id){document.getElementById(id).classList.add("open");
+  const el=document.getElementById(id);
+  if(id==="editOv"){
+    document.getElementById("eName").value=document.getElementById("profName").textContent;
+    document.getElementById("eBio").value=document.getElementById("profBio").textContent;
+    document.getElementById("eEmoji").value=document.getElementById("profEmoji").textContent;
+  }
+}
+function closeOverlay(id){document.getElementById(id).classList.remove("open");}
+window.openOverlay=openOverlay;
+window.closeOverlay=closeOverlay;
+
+function switchTab(tab){
+  document.getElementById("tab-posts").classList.toggle("active",tab==="posts");
+  document.getElementById("tab-saved").classList.toggle("active",tab==="saved");
+  document.getElementById("grid-posts").style.display=tab==="posts"?"grid":"none";
+  document.getElementById("grid-saved").style.display=tab==="saved"?"block":"none";
+}
+window.switchTab=switchTab;
+
+document.querySelectorAll(".bTag").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".bTag").forEach(x=>x.classList.remove("active"));t.classList.add("active");
+}));
+
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2200);
+}
+window.toast=toast;
+</script>
+<script>if("serviceWorker" in navigator&&!window.Capacitor&&location.protocol.startsWith("http")){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
+</body>
+</html>
