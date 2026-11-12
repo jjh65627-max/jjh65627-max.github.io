@@ -102,6 +102,8 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
 .emptyInbox{padding:40px 24px;text-align:center;color:#999;font-size:14px;font-weight:700;line-height:1.6}
 .msgItem{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s}
 .msgItem:active{background:#f9f9f9}
+.avImg{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
+.msgAv,.chatAvSm,.userAv,.profAvBig{overflow:hidden}
 .msgAv{width:50px;height:50px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:22px;position:relative;flex-shrink:0}
 .msgOnline{position:absolute;bottom:1px;right:1px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #fff}
 .msgInfo{flex:1;min-width:0}
@@ -368,13 +370,8 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
 <div class="sOverlay" id="screen-msgs">
   <div class="sHead"><div class="sBack" onclick="closeScreen('msgs')">&#x2039;</div><div class="sTitle">Mensajes</div></div>
   <div class="sBody">
-    <div class="storiesRow">
-      <div class="stItem"><div class="stRing me"><div class="stImg" id="myStAv">🧑</div></div><div class="stName">Tu historia</div></div>
-      <div class="stItem"><div class="stRing"><div class="stImg">🌿</div></div><div class="stName">aria</div></div>
-      <div class="stItem"><div class="stRing"><div class="stImg">😊</div></div><div class="stName">carlos</div></div>
-      <div class="stItem"><div class="stRing"><div class="stImg">👩</div></div><div class="stName">luna</div></div>
-      <div class="stItem"><div class="stRing"><div class="stImg">🎨</div></div><div class="stName">sofia</div></div>
-    </div>
+    <div class="bSearch"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2" stroke-linecap="round"/></svg><input type="text" id="msgSearch" placeholder="Buscar personas para chatear..." oninput="searchChatUsers(this.value)" autocomplete="off"></div>
+    <div id="msgSearchResults" style="display:none"></div>
     <div id="inbox"><div class="emptyInbox">Cargando...</div></div>
   </div>
 </div>
@@ -469,6 +466,7 @@ body{font-family:"Outfit",sans-serif;background:#000;color:#fff;height:100dvh;ov
     <div class="shTitle">Editar perfil</div>
     <div class="field"><div class="fLabel">Nombre</div><input class="fInput" id="eName" type="text"></div>
     <div class="field"><div class="fLabel">Bio</div><input class="fInput" id="eBio" type="text"></div>
+    <div class="field"><div class="fLabel">Foto de perfil</div><label class="followBtn" style="display:inline-block;cursor:pointer;padding:10px 18px">Elegir foto<input type="file" id="ePhoto" accept="image/*" style="display:none" onchange="pickPhoto(this)"></label></div>
     <div class="field"><div class="fLabel">Emoji</div><input class="fInput" id="eEmoji" type="text" maxlength="2"></div>
     <button class="fSave" onclick="saveProfile()">Guardar</button>
   </div>
@@ -515,10 +513,38 @@ let chatOther=null, unsubInbox=null, searchT=null;
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function myName(){return user.displayName||user.email.split("@")[0];}
 function myEmoji(){return localStorage.getItem("pEmoji")||"🧑";}
+const userCache={};
+async function getUser(uid,force){
+  if(!force&&userCache[uid])return userCache[uid];
+  try{const sn=await get(ref(db,"users/"+uid));userCache[uid]=sn.exists()?sn.val():{};}catch(e){userCache[uid]={};}
+  return userCache[uid];
+}
+function avHTML(photo,emoji){return photo?'<img class="avImg" alt="" src="'+esc(photo)+'">':esc(emoji||"🧑");}
 async function publishProfile(){
   if(!user)return;
-  try{await set(ref(db,"users/"+user.uid),{name:myName(),nameLower:myName().toLowerCase(),emoji:myEmoji(),ts:Date.now()});}catch(e){}
+  try{await update(ref(db,"users/"+user.uid),{name:myName(),nameLower:myName().toLowerCase(),emoji:myEmoji(),bio:localStorage.getItem("pBio")||"",ts:Date.now()});}catch(e){}
+  const u=await getUser(user.uid,true);
+  document.getElementById("profEmoji").innerHTML=avHTML(u.photo,myEmoji());
 }
+window.pickPhoto=function(inp){
+  const f=inp.files&&inp.files[0];if(!f||!user)return;
+  const img=new Image();
+  img.onload=async()=>{
+    const S=160,c=document.createElement("canvas");c.width=c.height=S;
+    const m=Math.min(img.width,img.height),sx=(img.width-m)/2,sy=(img.height-m)/2;
+    c.getContext("2d").drawImage(img,sx,sy,m,m,0,0,S,S);
+    const data=c.toDataURL("image/jpeg",0.75);
+    try{
+      await update(ref(db,"users/"+user.uid),{photo:data});
+      userCache[user.uid]=Object.assign(userCache[user.uid]||{},{photo:data});
+      document.getElementById("profEmoji").innerHTML=avHTML(data,myEmoji());
+      toast("Foto actualizada! 📸");
+    }catch(e){toast("No se pudo subir la foto");}
+    URL.revokeObjectURL(img.src);
+  };
+  img.onerror=()=>toast("Esa imagen no se puede abrir");
+  img.src=URL.createObjectURL(f);
+};
 function timeAgo(ts){
   if(!ts)return "";
   const m=Math.floor((Date.now()-ts)/60000);
@@ -534,13 +560,14 @@ function loadInbox(){
     snap.forEach(c=>{items.push(Object.assign({uid:c.key},c.val()));});
     items.sort((a,b)=>(b.ts||0)-(a.ts||0));
     if(!items.length){
-      box.innerHTML='<div class="emptyInbox">Aun no tienes chats.<br>Busca a alguien en la Brujula 🧭 y escribele.</div>';
+      box.innerHTML='<div class="emptyInbox">Aun no tienes chats.<br>Usa la lupa de arriba, escribe un nombre y toca a la persona para chatear.</div>';
       return;
     }
-    box.innerHTML=items.map(i=>'<div class="msgItem" data-uid="'+esc(i.uid)+'"><div class="msgAv">'+esc(i.emoji)+'</div><div class="msgInfo"><div class="msgName">'+esc(i.name)+'</div><div class="msgPrev">'+esc(i.last)+'</div></div><div class="msgMeta"><div class="msgTime">'+timeAgo(i.ts)+'</div>'+(i.unread>0?'<div class="msgBadge">'+(i.unread>9?"9+":i.unread)+'</div>':'')+'</div></div>').join("");
+    box.innerHTML=items.map(i=>'<div class="msgItem" data-uid="'+esc(i.uid)+'"><div class="msgAv" id="av-'+esc(i.uid)+'">'+esc(i.emoji)+'</div><div class="msgInfo"><div class="msgName">'+esc(i.name)+'</div><div class="msgPrev">'+esc(i.last)+'</div></div><div class="msgMeta"><div class="msgTime">'+timeAgo(i.ts)+'</div>'+(i.unread>0?'<div class="msgBadge">'+(i.unread>9?"9+":i.unread)+'</div>':'')+'</div></div>').join("");
     box.querySelectorAll(".msgItem").forEach(el=>{
       const it=items.find(x=>x.uid===el.dataset.uid);
       el.onclick=()=>openChat(it.uid,it.name,it.emoji);
+      getUser(it.uid).then(u=>{const av=document.getElementById("av-"+it.uid);if(av&&u&&u.photo)av.innerHTML=avHTML(u.photo,it.emoji);});
     });
   },()=>{box.innerHTML='<div class="emptyInbox">No se pudieron cargar los chats.</div>';});
 }
@@ -555,7 +582,6 @@ onAuthStateChanged(auth, async u=>{
     document.getElementById("profNameHead").textContent=name;
     document.getElementById("profBio").textContent=localStorage.getItem("pBio")||"Mi cuenta en ChatRT ✨";
     document.getElementById("profEmoji").textContent=emoji;
-    document.getElementById("myStAv").textContent=emoji;
     // Load user likes from Firebase
     loadUserLikes(u.uid);
     loadUserSaves(u.uid);
@@ -712,6 +738,7 @@ window.openChat=function(otherUid,name,emoji){
   chatOther={uid:otherUid,name:name,emoji:emoji};
   document.getElementById("chatName").textContent=name;
   document.getElementById("chatAv").textContent=emoji;
+  getUser(otherUid).then(u=>{if(u&&u.photo&&chatOther&&chatOther.uid===otherUid)document.getElementById("chatAv").innerHTML=avHTML(u.photo,emoji);});
   document.getElementById("chatMsgs").innerHTML="";
   chatId=[user.uid,otherUid].sort().join("_");
   if(unsub)unsub();
@@ -751,33 +778,49 @@ window.saveProfile=function(){
   if(emoji)localStorage.setItem("pEmoji",emoji);
   if(name)document.getElementById("profName").textContent=name;
   if(bio)document.getElementById("profBio").textContent=bio;
-  if(emoji){document.getElementById("profEmoji").textContent=emoji;document.getElementById("myStAv").textContent=emoji;}
+  if(emoji){document.getElementById("profEmoji").textContent=emoji;}
   upd.then(publishProfile);
   closeOverlay("editOv");toast("Perfil actualizado! ✅");
 };
 
+function runUserSearch(q,res,pick){
+  const note=t=>'<div style="padding:20px;text-align:center;color:#aaa;font-size:13px;font-weight:700">'+t+'</div>';
+  clearTimeout(searchT);
+  res.innerHTML=note("Buscando...");
+  searchT=setTimeout(async()=>{
+    if(!user){res.innerHTML=note("Inicia sesion para buscar personas");return;}
+    try{
+      const ql=q.toLowerCase();
+      const snap=await get(query(ref(db,"users"),orderByChild("nameLower"),startAt(ql),endAt(ql+"\uf8ff"),limitToFirst(20)));
+      const list=[];
+      snap.forEach(c=>{if(c.key!==user.uid)list.push(Object.assign({uid:c.key},c.val()));});
+      if(!list.length){res.innerHTML=note("No se encontraron usuarios");return;}
+      res.innerHTML=list.map(u=>'<div class="userResult" data-uid="'+esc(u.uid)+'"><div class="userAv">'+avHTML(u.photo,u.emoji)+'</div><div><div class="userName">'+esc(u.name)+'</div><div class="userSub">'+esc(u.bio||"Toca para chatear")+'</div></div><button class="followBtn">Mensaje</button></div>').join("");
+      res.querySelectorAll(".userResult").forEach(el=>{
+        const u=list.find(x=>x.uid===el.dataset.uid);
+        el.onclick=()=>{pick();openChat(u.uid,u.name,u.emoji);};
+      });
+    }catch(e){res.innerHTML=note("No se pudo buscar. Revisa las reglas de Firebase");}
+  },300);
+}
 window.searchUsers=function(q){
-  q=(q||"").trim().toLowerCase();
+  q=(q||"").trim();
   const res=document.getElementById("searchResults");
   const cont=document.getElementById("bruContent");
   if(!q){res.style.display="none";cont.style.display="block";return;}
   cont.style.display="none";res.style.display="block";
-  const note=t=>'<div style="padding:20px;text-align:center;color:#aaa;font-size:13px;font-weight:700">'+t+'</div>';
-  clearTimeout(searchT);
-  searchT=setTimeout(async()=>{
-    if(!user){res.innerHTML=note("Inicia sesion para buscar personas");return;}
-    try{
-      const snap=await get(query(ref(db,"users"),orderByChild("nameLower"),startAt(q),endAt(q+"\uf8ff"),limitToFirst(20)));
-      const list=[];
-      snap.forEach(c=>{if(c.key!==user.uid)list.push(Object.assign({uid:c.key},c.val()));});
-      if(!list.length){res.innerHTML=note("No se encontraron usuarios");return;}
-      res.innerHTML=list.map(u=>'<div class="userResult" data-uid="'+esc(u.uid)+'"><div class="userAv">'+esc(u.emoji)+'</div><div><div class="userName">'+esc(u.name)+'</div><div class="userSub">Toca para chatear</div></div><button class="followBtn">Mensaje</button></div>').join("");
-      res.querySelectorAll(".userResult").forEach(el=>{
-        const u=list.find(x=>x.uid===el.dataset.uid);
-        el.onclick=()=>{closeScreen("brujula");openChat(u.uid,u.name,u.emoji);};
-      });
-    }catch(e){res.innerHTML=note("No se pudo buscar. Revisa las reglas de Firebase");}
-  },300);
+  runUserSearch(q,res,()=>{closeScreen("brujula");});
+};
+window.searchChatUsers=function(q){
+  q=(q||"").trim();
+  const res=document.getElementById("msgSearchResults");
+  const inbox=document.getElementById("inbox");
+  if(!q){res.style.display="none";inbox.style.display="block";return;}
+  inbox.style.display="none";res.style.display="block";
+  runUserSearch(q,res,()=>{
+    document.getElementById("msgSearch").value="";
+    res.style.display="none";inbox.style.display="block";
+  });
 };
 </script>
 
